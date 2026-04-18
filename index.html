@@ -3,33 +3,54 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>RC Speedo PRO</title>
+<title>RC Speedo</title>
 
 <style>
 body {
-  background: radial-gradient(circle, #111, #000);
+  margin: 0;
+  background: #000;
   color: white;
-  text-align: center;
   font-family: Arial;
+  text-align: center;
+}
+
+.container {
+  margin-top: 40px;
+}
+
+.speed {
+  font-size: 80px;
+  font-weight: bold;
+  color: #00e5ff;
+  text-shadow: 0 0 20px #00e5ff;
+}
+
+.unit {
+  font-size: 24px;
+  color: #888;
+}
+
+.card {
+  background: #111;
+  border-radius: 12px;
+  padding: 15px;
+  margin: 10px;
+  display: inline-block;
+  min-width: 120px;
 }
 
 button {
-  font-size: 20px;
-  padding: 12px 24px;
+  font-size: 18px;
+  padding: 10px 20px;
   margin-top: 20px;
-  background: #00c853;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
+  background: #00c853;
   color: white;
 }
 
 canvas {
-  margin-top: 10px;
-}
-
-#info {
-  margin-top: 10px;
-  font-size: 18px;
+  margin-top: 20px;
 }
 </style>
 
@@ -37,119 +58,104 @@ canvas {
 
 <body>
 
-<h1>RC Speedo PRO</h1>
+<div class="container">
+
 <button id="btn">CONNECT</button>
 
-<canvas id="gauge" width="320" height="320"></canvas>
+<div class="speed" id="speed">0</div>
+<div class="unit">km/h</div>
 
-<h2 id="speed">0 km/h</h2>
-<div id="info">
-  Max: <span id="max">0</span> km/h |
-  Satellites: <span id="sats">0</span>
+<div>
+  <div class="card">
+    Max<br><span id="max">0</span>
+  </div>
+
+  <div class="card">
+    Satellites<br><span id="sats">0</span>
+  </div>
 </div>
+
+<button onclick="resetMax()">RESET</button>
 
 <canvas id="chart" width="320" height="150"></canvas>
 
+</div>
+
 <script>
-let characteristic;
 let targetSpeed = 0;
 let displaySpeed = 0;
 let speedHistory = [];
 
-// BLE connect
 document.getElementById("btn").addEventListener("click", async () => {
-  const device = await navigator.bluetooth.requestDevice({
-    acceptAllDevices: true,
-    optionalServices: [0x180C]
-  });
+  try {
+    const device = await navigator.bluetooth.requestDevice({
+      filters: [{ name: "RC-Speedo" }],
+      optionalServices: [0x180C]
+    });
 
-  const server = await device.gatt.connect();
-  const service = await server.getPrimaryService(0x180C);
-  characteristic = await service.getCharacteristic(0x2A56);
+    const server = await device.gatt.connect();
+    const service = await server.getPrimaryService(0x180C);
+    const characteristic = await service.getCharacteristic(0x2A56);
 
-  await characteristic.startNotifications();
-  characteristic.addEventListener("characteristicvaluechanged", handleData);
+    await characteristic.startNotifications();
+
+    characteristic.addEventListener("characteristicvaluechanged", (event) => {
+      const value = new TextDecoder().decode(event.target.value);
+
+      let parts = value.split(",");
+      let speed = parseFloat(parts[0]) || 0;
+      let max = parseFloat(parts[1]) || 0;
+      let sats = parseInt(parts[2]) || 0;
+
+      targetSpeed = speed;
+
+      document.getElementById("max").innerText = max.toFixed(1);
+      document.getElementById("sats").innerText = sats;
+
+      speedHistory.push(speed);
+      if (speedHistory.length > 60) speedHistory.shift();
+    });
+
+  } catch (e) {
+    alert(e);
+  }
 });
 
-// data handler
-function handleData(event) {
-  const value = new TextDecoder().decode(event.target.value);
-  let [speed, max, sats] = value.split(",");
-
-  targetSpeed = parseFloat(speed) || 0;
-
-  document.getElementById("max").innerText = parseFloat(max).toFixed(1);
-  document.getElementById("sats").innerText = sats;
-
-  speedHistory.push(targetSpeed);
-  if (speedHistory.length > 50) speedHistory.shift();
+function resetMax() {
+  document.getElementById("max").innerText = "0";
 }
 
 // animation
 function animate() {
-  displaySpeed += (targetSpeed - displaySpeed) * 0.1;
-
-  drawGauge(displaySpeed);
-  drawChart();
+  displaySpeed += (targetSpeed - displaySpeed) * 0.15;
 
   document.getElementById("speed").innerText =
-    displaySpeed.toFixed(1) + " km/h";
+    displaySpeed.toFixed(1);
+
+  drawChart();
 
   requestAnimationFrame(animate);
 }
 
-// GAUGE
-const ctx = document.getElementById("gauge").getContext("2d");
-
-function drawGauge(speed) {
-  ctx.clearRect(0, 0, 320, 320);
-
-  // gradient arc
-  let grad = ctx.createLinearGradient(0,0,320,0);
-  grad.addColorStop(0, "green");
-  grad.addColorStop(0.5, "yellow");
-  grad.addColorStop(1, "red");
-
-  ctx.beginPath();
-  ctx.arc(160,160,120,Math.PI,0);
-  ctx.strokeStyle = grad;
-  ctx.lineWidth = 20;
-  ctx.shadowBlur = 20;
-  ctx.shadowColor = "red";
-  ctx.stroke();
-
-  // needle
-  let angle = Math.PI - (speed/80)*Math.PI;
-
-  ctx.beginPath();
-  ctx.moveTo(160,160);
-  ctx.lineTo(
-    160 + 100*Math.cos(angle),
-    160 - 100*Math.sin(angle)
-  );
-  ctx.strokeStyle = "#ff4444";
-  ctx.lineWidth = 5;
-  ctx.stroke();
-}
-
-// CHART
-const chartCtx = document.getElementById("chart").getContext("2d");
+// chart
+const ctx = document.getElementById("chart").getContext("2d");
 
 function drawChart() {
-  chartCtx.clearRect(0,0,320,150);
+  ctx.clearRect(0,0,320,150);
 
-  chartCtx.beginPath();
+  ctx.beginPath();
+
   for (let i=0;i<speedHistory.length;i++) {
-    let x = i * (320/50);
-    let y = 150 - (speedHistory[i] * 2);
+    let x = i * (320/60);
+    let y = 150 - speedHistory[i]*2;
 
-    if (i === 0) chartCtx.moveTo(x,y);
-    else chartCtx.lineTo(x,y);
+    if (i===0) ctx.moveTo(x,y);
+    else ctx.lineTo(x,y);
   }
 
-  chartCtx.strokeStyle = "#00e5ff";
-  chartCtx.lineWidth = 2;
-  chartCtx.stroke();
+  ctx.strokeStyle = "#00e5ff";
+  ctx.lineWidth = 2;
+  ctx.stroke();
 }
 
 animate();
