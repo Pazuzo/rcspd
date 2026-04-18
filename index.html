@@ -3,28 +3,33 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>RC Speedo</title>
+<title>RC Speedo PRO</title>
 
 <style>
 body {
-  background: #0b0b0b;
+  background: radial-gradient(circle, #111, #000);
   color: white;
   text-align: center;
   font-family: Arial;
 }
 
 button {
-  font-size: 22px;
+  font-size: 20px;
   padding: 12px 24px;
   margin-top: 20px;
   background: #00c853;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   color: white;
 }
 
 canvas {
-  margin-top: 20px;
+  margin-top: 10px;
+}
+
+#info {
+  margin-top: 10px;
+  font-size: 18px;
 }
 </style>
 
@@ -32,55 +37,60 @@ canvas {
 
 <body>
 
-<h1>RC Speedometer</h1>
+<h1>RC Speedo PRO</h1>
 <button id="btn">CONNECT</button>
 
 <canvas id="gauge" width="320" height="320"></canvas>
 
 <h2 id="speed">0 km/h</h2>
-<h3 id="max">Max: 0 km/h</h3>
+<div id="info">
+  Max: <span id="max">0</span> km/h |
+  Satellites: <span id="sats">0</span>
+</div>
+
+<canvas id="chart" width="320" height="150"></canvas>
 
 <script>
 let characteristic;
 let targetSpeed = 0;
 let displaySpeed = 0;
+let speedHistory = [];
 
-// ВАЖНО: requestDevice е ПЪРВОТО нещо вътре
+// BLE connect
 document.getElementById("btn").addEventListener("click", async () => {
-  try {
-    const device = await navigator.bluetooth.requestDevice({
-      filters: [{ name: "RC-Speedo" }],
-      optionalServices: [0x180C]
-    });
+  const device = await navigator.bluetooth.requestDevice({
+    acceptAllDevices: true,
+    optionalServices: [0x180C]
+  });
 
-    const server = await device.gatt.connect();
-    const service = await server.getPrimaryService(0x180C);
-    characteristic = await service.getCharacteristic(0x2A56);
+  const server = await device.gatt.connect();
+  const service = await server.getPrimaryService(0x180C);
+  characteristic = await service.getCharacteristic(0x2A56);
 
-    await characteristic.startNotifications();
-    characteristic.addEventListener("characteristicvaluechanged", handleData);
-
-  } catch (error) {
-    console.error(error);
-    alert(error);
-  }
+  await characteristic.startNotifications();
+  characteristic.addEventListener("characteristicvaluechanged", handleData);
 });
 
+// data handler
 function handleData(event) {
   const value = new TextDecoder().decode(event.target.value);
-  let [speed, max] = value.split(",");
+  let [speed, max, sats] = value.split(",");
 
   targetSpeed = parseFloat(speed) || 0;
 
-  document.getElementById("max").innerText =
-    "Max: " + (parseFloat(max) || 0).toFixed(1) + " km/h";
+  document.getElementById("max").innerText = parseFloat(max).toFixed(1);
+  document.getElementById("sats").innerText = sats;
+
+  speedHistory.push(targetSpeed);
+  if (speedHistory.length > 50) speedHistory.shift();
 }
 
-// smooth animation
+// animation
 function animate() {
   displaySpeed += (targetSpeed - displaySpeed) * 0.1;
 
   drawGauge(displaySpeed);
+  drawChart();
 
   document.getElementById("speed").innerText =
     displaySpeed.toFixed(1) + " km/h";
@@ -88,33 +98,25 @@ function animate() {
   requestAnimationFrame(animate);
 }
 
-const canvas = document.getElementById("gauge");
-const ctx = canvas.getContext("2d");
+// GAUGE
+const ctx = document.getElementById("gauge").getContext("2d");
 
 function drawGauge(speed) {
   ctx.clearRect(0, 0, 320, 320);
 
-  // arc
+  // gradient arc
+  let grad = ctx.createLinearGradient(0,0,320,0);
+  grad.addColorStop(0, "green");
+  grad.addColorStop(0.5, "yellow");
+  grad.addColorStop(1, "red");
+
   ctx.beginPath();
   ctx.arc(160,160,120,Math.PI,0);
-  ctx.strokeStyle = "#333";
+  ctx.strokeStyle = grad;
   ctx.lineWidth = 20;
+  ctx.shadowBlur = 20;
+  ctx.shadowColor = "red";
   ctx.stroke();
-
-  // ticks
-  for (let i=0;i<=80;i+=10){
-    let angle = Math.PI - (i/80)*Math.PI;
-    let x1 = 160 + 100*Math.cos(angle);
-    let y1 = 160 - 100*Math.sin(angle);
-    let x2 = 160 + 120*Math.cos(angle);
-    let y2 = 160 - 120*Math.sin(angle);
-
-    ctx.beginPath();
-    ctx.moveTo(x1,y1);
-    ctx.lineTo(x2,y2);
-    ctx.strokeStyle="#888";
-    ctx.stroke();
-  }
 
   // needle
   let angle = Math.PI - (speed/80)*Math.PI;
@@ -125,9 +127,29 @@ function drawGauge(speed) {
     160 + 100*Math.cos(angle),
     160 - 100*Math.sin(angle)
   );
-  ctx.strokeStyle = "red";
-  ctx.lineWidth = 4;
+  ctx.strokeStyle = "#ff4444";
+  ctx.lineWidth = 5;
   ctx.stroke();
+}
+
+// CHART
+const chartCtx = document.getElementById("chart").getContext("2d");
+
+function drawChart() {
+  chartCtx.clearRect(0,0,320,150);
+
+  chartCtx.beginPath();
+  for (let i=0;i<speedHistory.length;i++) {
+    let x = i * (320/50);
+    let y = 150 - (speedHistory[i] * 2);
+
+    if (i === 0) chartCtx.moveTo(x,y);
+    else chartCtx.lineTo(x,y);
+  }
+
+  chartCtx.strokeStyle = "#00e5ff";
+  chartCtx.lineWidth = 2;
+  chartCtx.stroke();
 }
 
 animate();
