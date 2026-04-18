@@ -47,26 +47,21 @@ let displaySpeed = 0;
 
 async function connect() {
   try {
-    alert("Button clicked");
+    alert("Starting BLE...");
 
     const device = await navigator.bluetooth.requestDevice({
       acceptAllDevices: true,
-      optionalServices: ["180C"]
+      optionalServices: [0x180C]
     });
 
-    alert("Device selected: " + device.name);
+    alert("Device: " + device.name);
 
     const server = await device.gatt.connect();
-    alert("Connected to GATT");
-
-    const service = await server.getPrimaryService("180C");
-    alert("Service OK");
-
-    characteristic = await service.getCharacteristic("2A56");
-    alert("Characteristic OK");
+    const service = await server.getPrimaryService(0x180C);
+    characteristic = await service.getCharacteristic(0x2A56);
 
     await characteristic.startNotifications();
-    alert("Notifications ON");
+    alert("Connected!");
 
     characteristic.addEventListener("characteristicvaluechanged", handleData);
 
@@ -103,12 +98,14 @@ const ctx = canvas.getContext("2d");
 function drawGauge(speed) {
   ctx.clearRect(0, 0, 320, 320);
 
+  // arc
   ctx.beginPath();
   ctx.arc(160,160,120,Math.PI,0);
   ctx.strokeStyle = "#333";
   ctx.lineWidth = 20;
   ctx.stroke();
 
+  // ticks
   for (let i=0;i<=80;i+=10){
     let angle = Math.PI - (i/80)*Math.PI;
     let x1 = 160 + 100*Math.cos(angle);
@@ -123,6 +120,7 @@ function drawGauge(speed) {
     ctx.stroke();
   }
 
+  // needle
   let angle = Math.PI - (speed/80)*Math.PI;
 
   ctx.beginPath();
