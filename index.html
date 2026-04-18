@@ -48,10 +48,6 @@ button {
   background: #00c853;
   color: white;
 }
-
-canvas {
-  margin-top: 20px;
-}
 </style>
 
 </head>
@@ -77,85 +73,57 @@ canvas {
 
 <button onclick="resetMax()">RESET</button>
 
-<canvas id="chart" width="320" height="150"></canvas>
-
 </div>
 
 <script>
+let characteristic;
+let controlCharacteristic;
 let targetSpeed = 0;
 let displaySpeed = 0;
-let speedHistory = [];
 
 document.getElementById("btn").addEventListener("click", async () => {
-  try {
-    const device = await navigator.bluetooth.requestDevice({
-      filters: [{ name: "RC-Speedo" }],
-      optionalServices: [0x180C]
-    });
+  const device = await navigator.bluetooth.requestDevice({
+    filters: [{ name: "RC-Speedo" }],
+    optionalServices: [0x180C]
+  });
 
-    const server = await device.gatt.connect();
-    const service = await server.getPrimaryService(0x180C);
-    const characteristic = await service.getCharacteristic(0x2A56);
+  const server = await device.gatt.connect();
+  const service = await server.getPrimaryService(0x180C);
 
-    await characteristic.startNotifications();
+  characteristic = await service.getCharacteristic(0x2A56);
+  controlCharacteristic = await service.getCharacteristic(0x2A57);
 
-    characteristic.addEventListener("characteristicvaluechanged", (event) => {
-      const value = new TextDecoder().decode(event.target.value);
+  await characteristic.startNotifications();
 
-      let parts = value.split(",");
-      let speed = parseFloat(parts[0]) || 0;
-      let max = parseFloat(parts[1]) || 0;
-      let sats = parseInt(parts[2]) || 0;
+  characteristic.addEventListener("characteristicvaluechanged", (event) => {
+    const value = new TextDecoder().decode(event.target.value);
 
-      targetSpeed = speed;
+    let parts = value.split(",");
+    let speed = parseFloat(parts[0]) || 0;
+    let max = parseFloat(parts[1]) || 0;
+    let sats = parseInt(parts[2]) || 0;
 
-      document.getElementById("max").innerText = max.toFixed(1);
-      document.getElementById("sats").innerText = sats;
+    targetSpeed = speed;
 
-      speedHistory.push(speed);
-      if (speedHistory.length > 60) speedHistory.shift();
-    });
-
-  } catch (e) {
-    alert(e);
-  }
+    document.getElementById("max").innerText = max.toFixed(1);
+    document.getElementById("sats").innerText = sats;
+  });
 });
 
-function resetMax() {
-  document.getElementById("max").innerText = "0";
+async function resetMax() {
+  if (!controlCharacteristic) return;
+
+  const encoder = new TextEncoder();
+  await controlCharacteristic.writeValue(encoder.encode("RESET"));
 }
 
-// animation
 function animate() {
   displaySpeed += (targetSpeed - displaySpeed) * 0.15;
 
   document.getElementById("speed").innerText =
     displaySpeed.toFixed(1);
 
-  drawChart();
-
   requestAnimationFrame(animate);
-}
-
-// chart
-const ctx = document.getElementById("chart").getContext("2d");
-
-function drawChart() {
-  ctx.clearRect(0,0,320,150);
-
-  ctx.beginPath();
-
-  for (let i=0;i<speedHistory.length;i++) {
-    let x = i * (320/60);
-    let y = 150 - speedHistory[i]*2;
-
-    if (i===0) ctx.moveTo(x,y);
-    else ctx.lineTo(x,y);
-  }
-
-  ctx.strokeStyle = "#00e5ff";
-  ctx.lineWidth = 2;
-  ctx.stroke();
 }
 
 animate();
