@@ -46,17 +46,34 @@ let targetSpeed = 0;
 let displaySpeed = 0;
 
 async function connect() {
-  const device = await navigator.bluetooth.requestDevice({
-    filters: [{ name: "RC-Speedo" }],
-    optionalServices: ["180C"]
-  });
+  try {
+    alert("Button clicked");
 
-  const server = await device.gatt.connect();
-  const service = await server.getPrimaryService("180C");
-  characteristic = await service.getCharacteristic("2A56");
+    const device = await navigator.bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: ["180C"]
+    });
 
-  await characteristic.startNotifications();
-  characteristic.addEventListener("characteristicvaluechanged", handleData);
+    alert("Device selected: " + device.name);
+
+    const server = await device.gatt.connect();
+    alert("Connected to GATT");
+
+    const service = await server.getPrimaryService("180C");
+    alert("Service OK");
+
+    characteristic = await service.getCharacteristic("2A56");
+    alert("Characteristic OK");
+
+    await characteristic.startNotifications();
+    alert("Notifications ON");
+
+    characteristic.addEventListener("characteristicvaluechanged", handleData);
+
+  } catch (error) {
+    alert("ERROR: " + error);
+    console.error(error);
+  }
 }
 
 function handleData(event) {
