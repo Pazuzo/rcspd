@@ -7,28 +7,36 @@
 
 <style>
 body {
-  background: black;
+  margin: 0;
+  background: #000;
   color: white;
-  text-align: center;
   font-family: Arial;
+  text-align: center;
 }
 
 .speed {
-  font-size: 70px;
-  color: cyan;
+  font-size: 80px;
+  color: #00e5ff;
+  text-shadow: 0 0 20px #00e5ff;
 }
 
 .card {
   background: #111;
-  padding: 10px;
-  margin: 5px;
+  padding: 12px;
+  margin: 6px;
   display: inline-block;
   border-radius: 10px;
+  min-width: 100px;
 }
 
 button {
-  padding: 10px 20px;
+  padding: 12px 20px;
   margin: 10px;
+  font-size: 16px;
+  border-radius: 8px;
+  border: none;
+  background: #00c853;
+  color: white;
 }
 </style>
 
@@ -40,8 +48,10 @@ button {
 
 <div class="speed" id="speed">0</div>
 
-<div class="card">Max: <span id="max">0</span></div>
-<div class="card">Sats: <span id="sats">0</span></div>
+<div>
+  <div class="card">Max<br><span id="max">0</span></div>
+  <div class="card">Sats<br><span id="sats">0</span></div>
+</div>
 
 <button onclick="resetMax()">RESET</button>
 
@@ -65,16 +75,9 @@ document.getElementById("btn").addEventListener("click", async () => {
 
   await dataChar.startNotifications();
 
-  console.log("CONNECTED");
-
   dataChar.addEventListener("characteristicvaluechanged", (event) => {
 
-    // 🔥 FIX: правилно четене на bytes
-    let decoder = new TextDecoder("utf-8");
-    let value = decoder.decode(event.target.value);
-
-    console.log("RAW:", value);
-
+    let value = new TextDecoder().decode(event.target.value);
     let parts = value.trim().split(",");
 
     if (parts.length < 3) return;
@@ -92,13 +95,24 @@ document.getElementById("btn").addEventListener("click", async () => {
 
 async function resetMax() {
   if (!controlChar) return;
-  await controlChar.writeValue(new TextEncoder().encode("RESET"));
+
+  await controlChar.writeValueWithoutResponse(
+    new TextEncoder().encode("RESET")
+  );
 }
 
-// smooth speed
+// SMOOTH (fix lag)
 function animate() {
-  displaySpeed += (targetSpeed - displaySpeed) * 0.2;
-  document.getElementById("speed").innerText = displaySpeed.toFixed(1);
+
+  if (targetSpeed < displaySpeed) {
+    displaySpeed -= 0.3;
+  } else {
+    displaySpeed += (targetSpeed - displaySpeed) * 0.08;
+  }
+
+  document.getElementById("speed").innerText =
+    displaySpeed.toFixed(1);
+
   requestAnimationFrame(animate);
 }
 
