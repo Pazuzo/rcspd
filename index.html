@@ -33,7 +33,7 @@ canvas {
 <body>
 
 <h1>RC Speedometer</h1>
-<button onclick="connect()">CONNECT</button>
+<button id="btn">CONNECT</button>
 
 <canvas id="gauge" width="320" height="320"></canvas>
 
@@ -45,42 +45,38 @@ let characteristic;
 let targetSpeed = 0;
 let displaySpeed = 0;
 
-async function connect() {
+// ВАЖНО: requestDevice е ПЪРВОТО нещо вътре
+document.getElementById("btn").addEventListener("click", async () => {
   try {
-    alert("Starting BLE...");
-
     const device = await navigator.bluetooth.requestDevice({
-      acceptAllDevices: true,
+      filters: [{ name: "RC-Speedo" }],
       optionalServices: [0x180C]
     });
-
-    alert("Device: " + device.name);
 
     const server = await device.gatt.connect();
     const service = await server.getPrimaryService(0x180C);
     characteristic = await service.getCharacteristic(0x2A56);
 
     await characteristic.startNotifications();
-    alert("Connected!");
-
     characteristic.addEventListener("characteristicvaluechanged", handleData);
 
   } catch (error) {
-    alert("ERROR: " + error);
     console.error(error);
+    alert(error);
   }
-}
+});
 
 function handleData(event) {
   const value = new TextDecoder().decode(event.target.value);
   let [speed, max] = value.split(",");
 
-  targetSpeed = parseFloat(speed);
+  targetSpeed = parseFloat(speed) || 0;
 
   document.getElementById("max").innerText =
-    "Max: " + parseFloat(max).toFixed(1) + " km/h";
+    "Max: " + (parseFloat(max) || 0).toFixed(1) + " km/h";
 }
 
+// smooth animation
 function animate() {
   displaySpeed += (targetSpeed - displaySpeed) * 0.1;
 
