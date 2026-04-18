@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+<meta charset="utf-8">
+<title>RC Speedo</title>
+
+<style>
+body {
+  background: #0b0b0b;
+  color: white;
+  text-align: center;
+  font-family: Arial;
+}
+
+button {
+  font-size: 22px;
+  padding: 12px 24px;
+  margin-top: 20px;
+  background: #00c853;
+  border: none;
+  border-radius: 8px;
+  color: white;
+}
+
+canvas {
+  margin-top: 20px;
+}
+</style>
+
+</head>
+
+<body>
+
+<h1>RC Speedometer</h1>
+<button onclick="connect()">CONNECT</button>
+
+<canvas id="gauge" width="320" height="320"></canvas>
+
+<h2 id="speed">0 km/h</h2>
+<h3 id="max">Max: 0 km/h</h3>
+
+<script>
+let characteristic;
+let targetSpeed = 0;
+let displaySpeed = 0;
+
+async function connect() {
+  const device = await navigator.bluetooth.requestDevice({
+    filters: [{ name: "RC-Speedo" }],
+    optionalServices: ["180C"]
+  });
+
+  const server = await device.gatt.connect();
+  const service = await server.getPrimaryService("180C");
+  characteristic = await service.getCharacteristic("2A56");
+
+  await characteristic.startNotifications();
+  characteristic.addEventListener("characteristicvaluechanged", handleData);
+}
+
+function handleData(event) {
+  const value = new TextDecoder().decode(event.target.value);
+  let [speed, max] = value.split(",");
+
+  targetSpeed = parseFloat(speed);
+
+  document.getElementById("max").innerText =
+    "Max: " + parseFloat(max).toFixed(1) + " km/h";
+}
+
+function animate() {
+  displaySpeed += (targetSpeed - displaySpeed) * 0.1;
+
+  drawGauge(displaySpeed);
+
+  document.getElementById("speed").innerText =
+    displaySpeed.toFixed(1) + " km/h";
+
+  requestAnimationFrame(animate);
+}
+
+const canvas = document.getElementById("gauge");
+const ctx = canvas.getContext("2d");
+
+function drawGauge(speed) {
+  ctx.clearRect(0, 0, 320, 320);
+
+  ctx.beginPath();
+  ctx.arc(160,160,120,Math.PI,0);
+  ctx.strokeStyle = "#333";
+  ctx.lineWidth = 20;
+  ctx.stroke();
+
+  for (let i=0;i<=80;i+=10){
+    let angle = Math.PI - (i/80)*Math.PI;
+    let x1 = 160 + 100*Math.cos(angle);
+    let y1 = 160 - 100*Math.sin(angle);
+    let x2 = 160 + 120*Math.cos(angle);
+    let y2 = 160 - 120*Math.sin(angle);
+
+    ctx.beginPath();
+    ctx.moveTo(x1,y1);
+    ctx.lineTo(x2,y2);
+    ctx.strokeStyle="#888";
+    ctx.stroke();
+  }
+
+  let angle = Math.PI - (speed/80)*Math.PI;
+
+  ctx.beginPath();
+  ctx.moveTo(160,160);
+  ctx.lineTo(
+    160 + 100*Math.cos(angle),
+    160 - 100*Math.sin(angle)
+  );
+  ctx.strokeStyle = "red";
+  ctx.lineWidth = 4;
+  ctx.stroke();
+}
+
+animate();
+</script>
+
+</body>
+</html>
